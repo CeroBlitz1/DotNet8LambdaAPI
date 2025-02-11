@@ -360,4 +360,8 @@ MigrationBackup/
 .ionide/
 
 # Fody - auto-generated XML schema
-FodyWeavers.xsd
+FodyWeavers.xsdterraform/.terraform/
+
+terraform/.terraform/
+terraform.tfstate
+terraform.tfstate.backup
