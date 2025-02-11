@@ -3,7 +3,7 @@ name: Deploy .NET 8 Lambda API
 on:
   push:
     branches:
-      - main  # Runs on push to main branch
+      - master  # Runs on push to main branch
 
 jobs:
   deploy:
