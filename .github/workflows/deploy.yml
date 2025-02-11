@@ -3,7 +3,8 @@ name: Deploy .NET 8 Lambda API
 on:
   push:
     branches:
-      - master  # Runs on push to main branch
+      - master
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -19,10 +20,10 @@ jobs:
           dotnet-version: '8.0'
 
       - name: Restore Dependencies
-        run: dotnet restore
+        run: dotnet restore DotNet8LambdaAPI/DotNet8LambdaAPI.csproj
 
       - name: Build Application
-        run: dotnet publish -c Release -o ./publish
+        run: dotnet publish DotNet8LambdaAPI/DotNet8LambdaAPI.csproj -c Release -o ./publish
 
       - name: Zip Lambda Package
         run: zip -r lambda.zip ./publish
