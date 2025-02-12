@@ -92,7 +92,7 @@ resource "aws_iam_policy_attachment" "codebuild_policy" {
 # AWS CodeBuild for .NET Lambda Build
 resource "aws_codebuild_project" "dotnet_build_project" {
   name          = "dotnet-lambda-build"
-  service_role  = "codebuild-role"
+  service_role  = aws_iam_role.codebuild_role.arn
 
   artifacts {
     type = "CODEPIPELINE"
