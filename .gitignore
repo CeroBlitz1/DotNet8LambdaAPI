@@ -365,3 +365,5 @@ FodyWeavers.xsdterraform/.terraform/
 terraform/.terraform/
 terraform.tfstate
 terraform.tfstate.backup
+/terraform/lambda.zip
+/terraform/.terraform.lock.hcl

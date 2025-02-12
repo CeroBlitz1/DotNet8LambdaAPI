@@ -1,10 +1,9 @@
-name: Deploy .NET 8 Lambda API
+name: Deploy Lambda with Terraform
 
 on:
   push:
     branches:
-      - master
-  workflow_dispatch:
+      - main
 
 jobs:
   deploy:
@@ -17,26 +16,33 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '8.0'
+          dotnet-version: '8.0.x'
 
       - name: Restore Dependencies
-        run: dotnet restore DotNet8LambdaAPI/DotNet8LambdaAPI.csproj
+        run: dotnet restore
 
       - name: Build Application
-        run: dotnet publish DotNet8LambdaAPI/DotNet8LambdaAPI.csproj -c Release -o ./publish
+        run: dotnet publish -c Release -o output
 
       - name: Zip Lambda Package
-        run: zip -r lambda.zip ./publish
+        run: cd output && zip -r ../lambda.zip .
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
       - name: Upload to S3
-        run: aws s3 cp lambda.zip s3://dotnet8-lambda-bucket-unique/lambda.zip
+        run: aws s3 cp lambda.zip s3://your-lambda-bucket/
+
+      - name: Install Terraform
+        run: |
+          sudo apt-get update && sudo apt-get install -y unzip
+          curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+          sudo apt update && sudo apt install terraform
 
       - name: Apply Terraform
         run: |
