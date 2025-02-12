@@ -34,8 +34,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: Ensure S3 Bucket Exists
+        run: |
+          aws s3api head-bucket --bucket dotnet8-lambda-bucket-unique || aws s3 mb s3://dotnet8-lambda-bucket-unique
+
       - name: Upload to S3
-        run: aws s3 cp lambda.zip s3://your-lambda-bucket/
+        run: aws s3 cp lambda.zip s3://dotnet8-lambda-bucket-unique/
 
       # ✅ Use Prebuilt Terraform GitHub Action
       - name: Set up Terraform
