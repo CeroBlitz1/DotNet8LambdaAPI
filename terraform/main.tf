@@ -2,9 +2,17 @@ provider "aws" {
   region = "us-east-1"  # Change this to your preferred region
 }
 
-# Create an S3 Bucket for storing the Lambda deployment package
+# Data source to check if the S3 bucket exists
+data "aws_s3_bucket" "existing_lambda_bucket" {
+  bucket = "dotnet8-lambda-bucket-unique"
+}
+
+# Create an S3 Bucket only if it does not exist
 resource "aws_s3_bucket" "lambda_bucket" {
-  bucket = "dotnet8-lambda-bucket-unique"  # Change this to a globally unique name
+  bucket = "dotnet8-lambda-bucket-unique"
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Upload the Lambda ZIP file to S3
@@ -15,8 +23,14 @@ resource "aws_s3_object" "lambda_zip" {
   etag   = filemd5("lambda.zip")
 }
 
-# IAM Role for Lambda Execution
+# Data source to check if the IAM Role already exists
+data "aws_iam_role" "existing_lambda_role" {
+  name = "lambda-execution-role"
+}
+
+# IAM Role for Lambda Execution (Only if not exists)
 resource "aws_iam_role" "lambda_role" {
+  count = length(data.aws_iam_role.existing_lambda_role) > 0 ? 0 : 1
   name = "lambda-execution-role"
 
   assume_role_policy = <<EOF
@@ -38,31 +52,18 @@ EOF
 # Attach AWS Lambda Basic Execution Role
 resource "aws_iam_policy_attachment" "lambda_basic_execution" {
   name       = "lambda-basic-execution"
-  roles      = [aws_iam_role.lambda_role.name]
+  roles      = ["lambda-execution-role"]
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Create AWS Lambda Function
-resource "aws_lambda_function" "dotnet_lambda" {
-  function_name    = "DotNet8LambdaAPI"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "DotNet8LambdaAPI::DotNet8LambdaAPI.LambdaEntryPoint::FunctionHandlerAsync"
-  runtime         = "dotnet8"
-  timeout         = 30
-  memory_size     = 512
-
-  s3_bucket = aws_s3_bucket.lambda_bucket.bucket
-  s3_key    = aws_s3_object.lambda_zip.key
-
-  environment {
-    variables = {
-      ENV = "production"
-    }
-  }
+# Data source to check if the IAM Role already exists
+data "aws_iam_role" "existing_codebuild_role" {
+  name = "codebuild-role"
 }
 
-# IAM Role for CodeBuild
+# IAM Role for CodeBuild (Only if not exists)
 resource "aws_iam_role" "codebuild_role" {
+  count = length(data.aws_iam_role.existing_codebuild_role) > 0 ? 0 : 1
   name = "codebuild-role"
 
   assume_role_policy = <<EOF
@@ -84,14 +85,14 @@ EOF
 # Attach AWS Managed Policies for CodeBuild
 resource "aws_iam_policy_attachment" "codebuild_policy" {
   name       = "codebuild-policy"
-  roles      = [aws_iam_role.codebuild_role.name]
+  roles      = ["codebuild-role"]
   policy_arn = "arn:aws:iam::aws:policy/AWSCodeBuildDeveloperAccess"
 }
 
 # AWS CodeBuild for .NET Lambda Build
 resource "aws_codebuild_project" "dotnet_build_project" {
   name          = "dotnet-lambda-build"
-  service_role  = aws_iam_role.codebuild_role.arn
+  service_role  = "codebuild-role"
 
   artifacts {
     type = "CODEPIPELINE"
@@ -107,59 +108,4 @@ resource "aws_codebuild_project" "dotnet_build_project" {
     type      = "CODEPIPELINE"
     buildspec = "buildspec.yml"
   }
-}
-
-# Create API Gateway
-resource "aws_api_gateway_rest_api" "lambda_api" {
-  name        = "dotnet8-api-gateway"
-  description = "API Gateway for .NET 8 Lambda"
-}
-
-# Create API Gateway Resource
-resource "aws_api_gateway_resource" "proxy" {
-  rest_api_id = aws_api_gateway_rest_api.lambda_api.id
-  parent_id   = aws_api_gateway_rest_api.lambda_api.root_resource_id
-  path_part   = "{proxy+}"
-}
-
-# Create ANY Method to Forward Requests to Lambda
-resource "aws_api_gateway_method" "proxy_method" {
-  rest_api_id   = aws_api_gateway_rest_api.lambda_api.id
-  resource_id   = aws_api_gateway_resource.proxy.id
-  http_method   = "ANY"
-  authorization = "NONE"
-}
-
-# Integrate API Gateway with Lambda
-resource "aws_api_gateway_integration" "lambda_integration" {
-  rest_api_id = aws_api_gateway_rest_api.lambda_api.id
-  resource_id = aws_api_gateway_resource.proxy.id
-  http_method = aws_api_gateway_method.proxy_method.http_method
-
-  integration_http_method = "POST"
-  type                   = "AWS_PROXY"
-  uri                    = aws_lambda_function.dotnet_lambda.invoke_arn
-}
-
-# Deploy API Gateway
-resource "aws_api_gateway_deployment" "deployment" {
-  depends_on  = [aws_api_gateway_integration.lambda_integration]
-  rest_api_id = aws_api_gateway_rest_api.lambda_api.id
-}
-
-# Create API Gateway Stage
-resource "aws_api_gateway_stage" "prod" {
-  stage_name    = "prod"
-  rest_api_id   = aws_api_gateway_rest_api.lambda_api.id
-  deployment_id = aws_api_gateway_deployment.deployment.id
-}
-
-# Lambda Permission for API Gateway Invocation
-resource "aws_lambda_permission" "apigw" {
-  statement_id  = "AllowExecutionFromAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.dotnet_lambda.function_name
-  principal     = "apigateway.amazonaws.com"
-
-  source_arn = "${aws_api_gateway_rest_api.lambda_api.execution_arn}/*/*"
 }
