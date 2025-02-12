@@ -41,6 +41,9 @@ jobs:
       - name: Upload to S3
         run: aws s3 cp lambda.zip s3://dotnet8-lambda-bucket-unique/
 
+      - name: Move Lambda ZIP to Terraform Directory
+        run: mv lambda.zip terraform/lambda.zip
+
       # ✅ Use Prebuilt Terraform GitHub Action
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
